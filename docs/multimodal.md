@@ -119,6 +119,10 @@ NOTE: some models may require large context window, for example: `-c 8192`
 # Qwen3-ASR
 (tool_name) -hf ggml-org/Qwen3-ASR-0.6B-GGUF
 (tool_name) -hf ggml-org/Qwen3-ASR-1.7B-GGUF
+
+# MOSS-Transcribe-Diarize (transcript with speakers and timestamps)
+# see docs/multimodal/moss-transcribe-diarize.md
+(tool_name) -hf mrom1/MOSS-Transcribe-Diarize-GGUF:Q8_0
 ```
 
 **Mixed modalities**:

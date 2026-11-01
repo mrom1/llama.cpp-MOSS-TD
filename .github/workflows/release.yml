@@ -178,10 +178,6 @@ jobs:
             os: ubuntu-22.04
           - build: 'arm64'
             os: ubuntu-24.04-arm
-          - build: 's390x'
-            os: ubuntu-24.04-s390x
-          - build: '26.04-s390x'
-            os: ubuntu-26.04-s390x
 
     runs-on: ${{ matrix.os }}
 
@@ -1630,7 +1626,8 @@ jobs:
 
   ubuntu-26-zdnn:
     needs: [check-release, ui-build]
-    if: ${{ needs.check-release.outputs.should_release == 'true' }}
+    # (IBM Z runners: ggml-org's only)
+    if: ${{ needs.check-release.outputs.should_release == 'true' && github.repository_owner == 'ggml-org' }}
 
     runs-on: ubuntu-26.04-s390x
 

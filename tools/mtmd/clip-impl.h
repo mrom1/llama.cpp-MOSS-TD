@@ -218,6 +218,8 @@
 #define TN_MM_AUDIO_FC  "mm.a.fc.%s" // fully connected layer
 #define TN_MM_NORM_PRE  "mm.a.norm_pre.%s"
 #define TN_MM_NORM_MID  "mm.a.norm_mid.%s"
+#define TN_MM_NORM_POST "mm.a.norm_post.%s"
+#define TN_MM_DIGIT_EMBD "mm.a.digit_embd.%s"
 
 // mimo-audio-tokenizer
 #define TN_A_DOWNSAMPLE_CONV "a.downsample.conv.%s"
@@ -534,6 +536,7 @@ enum projector_type {
     PROJECTOR_TYPE_VOXTRAL,
     PROJECTOR_TYPE_VOXTRAL_RT,
     PROJECTOR_TYPE_MERALION,
+    PROJECTOR_TYPE_MOSS_TD,
     PROJECTOR_TYPE_MUSIC_FLAMINGO,
     PROJECTOR_TYPE_LFM2,
     PROJECTOR_TYPE_LFM3VL,
@@ -615,6 +618,7 @@ static std::map<projector_type, std::string> PROJECTOR_TYPE_NAMES = {
     { PROJECTOR_TYPE_VOXTRAL,           "voxtral"},
     { PROJECTOR_TYPE_VOXTRAL_RT,        "voxtral_rt"},
     { PROJECTOR_TYPE_MERALION,          "meralion"},
+    { PROJECTOR_TYPE_MOSS_TD,           "moss_td"},
     { PROJECTOR_TYPE_MUSIC_FLAMINGO,    "musicflamingo"},
     { PROJECTOR_TYPE_LFM2,              "lfm2"},
     { PROJECTOR_TYPE_LFM3VL,            "lfm3vl"},
@@ -790,6 +794,11 @@ struct clip_image_f32 {
     int32_t lead_pad = 0;
     // separators appended after the image tokens
     clip_suffix_type suffix_type = CLIP_SUFFIX_NONE;
+
+    // moss_td: output tokens of this audio window that hold real audio (-1: all of them)
+    int32_t audio_n_keep = -1;
+    // moss_td: time anchors inserted into the output: {after this many audio tokens, the second}
+    std::vector<std::pair<int32_t, int32_t>> audio_anchors;
 
     // tile grid of the image group this entry belongs to
     // llava-next "anyres" (Granite4 Vision): the whole grid is encoded and assembled in a single graph

@@ -15,6 +15,10 @@ struct mtmd_audio_mel {
     int64_t n_mel;
 
     std::vector<float> data;
+
+    // moss_td, see clip_image_f32
+    int32_t n_keep = -1;
+    std::vector<std::pair<int32_t, int32_t>> anchors;
 };
 
 struct mtmd_audio_mel_filters {
@@ -71,6 +75,18 @@ struct mtmd_audio_preprocessor_whisper : mtmd_audio_preprocessor {
 
   private:
     mtmd_audio_cache cache;
+};
+
+// MOSS-Transcribe-Diarize: each 30 s window gets its own log-mel (zero-padded to 30 s), the last
+// window keeps only the tokens of its real audio, and the elapsed second is inserted as digits
+// every 5 s of audio (62 tokens): the time anchors of the model's processor
+struct mtmd_audio_preprocessor_moss_td : mtmd_audio_preprocessor {
+    mtmd_audio_preprocessor_moss_td(const clip_ctx * ctx) : mtmd_audio_preprocessor(ctx), whisper(ctx) {}
+    void initialize() override { whisper.initialize(); }
+    bool preprocess(const float * samples, size_t n_samples, std::vector<mtmd_audio_mel> & output) const override;
+
+  private:
+    mtmd_audio_preprocessor_whisper whisper;
 };
 
 struct mtmd_audio_preprocessor_muse_spark_audio : mtmd_audio_preprocessor {

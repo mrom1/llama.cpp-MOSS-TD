@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from typing import Any, Callable, Iterable, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -195,6 +197,59 @@ class VoxtralWhisperEncoderModel(WhisperEncoderModel):
         super().set_gguf_parameters()
         self.gguf_writer.add_clip_projector_type(gguf.VisionProjectorType.VOXTRAL)
         self.gguf_writer.add_audio_stack_factor(4) # == intermediate_size // hidden_size
+
+
+@ModelBase.register("MossTranscribeDiarizeForConditionalGeneration")
+@ModelBase.example("OpenMOSS-Team/MOSS-Transcribe-Diarize")
+class MossTranscribeDiarizeWhisperEncoderModel(WhisperEncoderModel):
+    def set_gguf_parameters(self):
+        super().set_gguf_parameters()
+        self.gguf_writer.add_clip_projector_type(gguf.VisionProjectorType.MOSS_TD)
+        self.gguf_writer.add_audio_stack_factor(self.global_config["audio_merge_size"])
+
+    def tensor_force_quant(self, name, new_name, bid, n_dims):
+        # the time anchors are text tokens: keep their embeddings as the decoder has them
+        if new_name.startswith(gguf.TENSOR_NAMES[gguf.MODEL_TENSOR.A_MM_DIGIT_EMBD]):
+            return gguf.GGMLQuantizationType.F32
+        return super().tensor_force_quant(name, new_name, bid, n_dims)
+
+    @classmethod
+    def filter_tensors(cls, item: tuple[str, Callable[[], Tensor]]) -> tuple[str, Callable[[], Tensor]] | None:
+        name, gen = item
+
+        # the digit rows of the token embeddings are needed for the time anchors
+        if name == "model.language_model.embed_tokens.weight":
+            return "model.vq_adaptor.digit_embd", gen
+
+        if name.startswith(("model.language_model.", "lm_head.")):
+            return None
+
+        if name.startswith("model.whisper_encoder."):
+            name = name.replace("model.whisper_encoder.", "audio_tower.")
+
+        return super().filter_tensors((name, gen))
+
+    def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
+        # time anchors: the seconds are written as digit tokens inside the audio span
+        if name == "model.vq_adaptor.digit_embd":
+            with open(self.dir_model / "tokenizer.json", encoding="utf-8") as f:
+                vocab = json.load(f)["model"]["vocab"]
+            ids = [vocab[str(d)] for d in range(10)]
+            yield (self.format_tensor_name(gguf.MODEL_TENSOR.A_MM_DIGIT_EMBD), data_torch[ids])
+            return
+
+        # vq_adaptor: Linear (0) -> SiLU -> Linear (2) -> LayerNorm (3)
+        if name.startswith("model.vq_adaptor."):
+            suffix = "." + name.rsplit(".", 1)[-1]
+            if ".layers.0." in name:
+                yield (self.format_tensor_name(gguf.MODEL_TENSOR.A_MMPROJ, 1, suffix=suffix), data_torch)
+            elif ".layers.2." in name:
+                yield (self.format_tensor_name(gguf.MODEL_TENSOR.A_MMPROJ, 2, suffix=suffix), data_torch)
+            elif ".layers.3." in name:
+                yield (self.format_tensor_name(gguf.MODEL_TENSOR.A_MM_NORM_POST, suffix=suffix), data_torch)
+            return
+
+        yield from super().modify_tensors(data_torch, name, bid)
 
 
 @ModelBase.register("AudioFlamingo3ForConditionalGeneration")

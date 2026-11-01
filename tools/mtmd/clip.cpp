@@ -1094,6 +1094,7 @@ static std::unique_ptr<clip_graph> clip_get_graph_builder(clip_ctx * ctx, const 
         case PROJECTOR_TYPE_QWEN2A:
         case PROJECTOR_TYPE_GLMA:
         case PROJECTOR_TYPE_MERALION:
+        case PROJECTOR_TYPE_MOSS_TD:
         case PROJECTOR_TYPE_MUSIC_FLAMINGO:
             {
                 builder = std::make_unique<clip_graph_whisper_enc>(ctx, img);
@@ -2079,11 +2080,13 @@ struct clip_model_loader {
                 case PROJECTOR_TYPE_GLMA:
                 case PROJECTOR_TYPE_VOXTRAL:
                 case PROJECTOR_TYPE_MERALION:
+                case PROJECTOR_TYPE_MOSS_TD:
                 case PROJECTOR_TYPE_MUSIC_FLAMINGO:
                     {
                         bool require_stack = model.proj_type == PROJECTOR_TYPE_ULTRAVOX ||
                                              model.proj_type == PROJECTOR_TYPE_VOXTRAL ||
                                              model.proj_type == PROJECTOR_TYPE_MERALION ||
+                                             model.proj_type == PROJECTOR_TYPE_MOSS_TD ||
                                              model.proj_type == PROJECTOR_TYPE_GLMA;
                         get_u32(KEY_A_PROJ_STACK_FACTOR, hparams.proj_stack_factor, require_stack);
                         hparams.ffn_op = FFN_GELU_ERF;
@@ -3705,6 +3708,20 @@ struct clip_model_loader {
                     model.mm_2_w = get_tensor(string_format(TN_MM_AUDIO_MLP, 2, "weight"));
                     model.mm_2_b = get_tensor(string_format(TN_MM_AUDIO_MLP, 2, "bias"));
                 } break;
+            case PROJECTOR_TYPE_MOSS_TD:
+                {
+                    model.conv1d_1_w = get_tensor(string_format(TN_CONV1D, 1, "weight"));
+                    model.conv1d_1_b = get_tensor(string_format(TN_CONV1D, 1, "bias"));
+                    model.conv1d_2_w = get_tensor(string_format(TN_CONV1D, 2, "weight"));
+                    model.conv1d_2_b = get_tensor(string_format(TN_CONV1D, 2, "bias"));
+                    model.mm_1_w = get_tensor(string_format(TN_MM_AUDIO_MLP, 1, "weight"));
+                    model.mm_1_b = get_tensor(string_format(TN_MM_AUDIO_MLP, 1, "bias"));
+                    model.mm_2_w = get_tensor(string_format(TN_MM_AUDIO_MLP, 2, "weight"));
+                    model.mm_2_b = get_tensor(string_format(TN_MM_AUDIO_MLP, 2, "bias"));
+                    model.mm_post_norm_w = get_tensor(string_format(TN_MM_NORM_POST, "weight"));
+                    model.mm_post_norm_b = get_tensor(string_format(TN_MM_NORM_POST, "bias"));
+                    model.mm_digit_embd  = get_tensor(string_format(TN_MM_DIGIT_EMBD, "weight"));
+                } break;
             case PROJECTOR_TYPE_INTERNVL:
                 {
                     model.mm_0_w = get_tensor(string_format(TN_MVLM_PROJ_MLP, 0, "weight"));
@@ -4893,6 +4910,17 @@ int clip_n_output_tokens(const clip_ctx * ctx, const clip_image_f32 * img) {
             {
                 const int64_t fold = ctx->model.hparams.audio_samples_per_token();
                 n_patches = (int) ((img->nx() + fold - 1) / fold);
+            } break;
+        case PROJECTOR_TYPE_MOSS_TD:
+            {
+                // whisper frames -> conv stride 2 -> stacked frames, then only the real audio, plus the anchor digits
+                n_patches = img->nx() / 2 / ctx->model.hparams.proj_stack_factor;
+                if (img->audio_n_keep >= 0) {
+                    n_patches = std::min(n_patches, img->audio_n_keep);
+                }
+                for (const auto & anchor : img->audio_anchors) {
+                    n_patches += (int) std::to_string(anchor.second).size();
+                }
             } break;
         case PROJECTOR_TYPE_VOXTRAL:
         case PROJECTOR_TYPE_ULTRAVOX:
@@ -6214,6 +6242,7 @@ bool clip_encode(struct clip_ctx * ctx, struct clip_encode_params * params) {
         case PROJECTOR_TYPE_D1OMNI_V:
         case PROJECTOR_TYPE_VOXTRAL:
         case PROJECTOR_TYPE_MERALION:
+        case PROJECTOR_TYPE_MOSS_TD:
         case PROJECTOR_TYPE_MUSIC_FLAMINGO:
         case PROJECTOR_TYPE_JANUS_PRO:
         case PROJECTOR_TYPE_PHI4:
@@ -7018,6 +7047,7 @@ int clip_n_mmproj_embd(const struct clip_ctx * ctx) {
         case PROJECTOR_TYPE_ULTRAVOX:
         case PROJECTOR_TYPE_VOXTRAL:
         case PROJECTOR_TYPE_VOXTRAL_RT:
+        case PROJECTOR_TYPE_MOSS_TD:
         case PROJECTOR_TYPE_MUSIC_FLAMINGO:
             return ctx->model.mm_2_w->ne[1];
         case PROJECTOR_TYPE_MERALION:

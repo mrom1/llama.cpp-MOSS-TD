@@ -647,6 +647,53 @@ bool mtmd_audio_preprocessor_whisper::preprocess(const float *                 s
 }
 
 //
+// mtmd_audio_preprocessor_moss_td
+//
+
+bool mtmd_audio_preprocessor_moss_td::preprocess(const float *                 samples,
+                                                 size_t                        n_samples,
+                                                 std::vector<mtmd_audio_mel> & output) const {
+    if (n_samples == 0) {
+        return false;
+    }
+    const size_t  window_samples  = (size_t) hparams.audio_sample_rate * 30;
+    const int32_t samples_per_tok = hparams.audio_hop_len * 2 * hparams.proj_stack_factor; // 1280
+    const int32_t anchor_every_s  = 5;
+    const int32_t anchor_every_t  = 62; // int(12.5 tokens/s * 5 s)
+
+    // tokens of each window: (samples - 1) / 1280 + 1
+    std::vector<int32_t> n_keep;
+    int32_t n_total = 0;
+    for (size_t off = 0; off < n_samples; off += window_samples) {
+        const size_t n = std::min(window_samples, n_samples - off);
+        n_keep.push_back((int32_t) ((n - 1) / samples_per_tok + 1));
+        n_total += n_keep.back();
+    }
+    // an anchor after every 62 tokens, for each 5 s that the whole audio lasts
+    const int32_t duration_s = (int32_t) (n_total / 12.5);
+
+    int32_t first = 0; // global index of the first token of the window
+    for (size_t w = 0; w < n_keep.size(); w++) {
+        const size_t off = w * window_samples;
+        std::vector<mtmd_audio_mel> mels;
+        if (!whisper.preprocess(samples + off, std::min(window_samples, n_samples - off), mels) || mels.empty()) {
+            return false;
+        }
+        mtmd_audio_mel mel = std::move(mels[0]); // the window itself, the rest is its padding
+        mel.n_keep = n_keep[w];
+        for (int32_t sec = anchor_every_s; sec <= duration_s; sec += anchor_every_s) {
+            const int32_t pos = (sec / anchor_every_s) * anchor_every_t;
+            if (pos > first && pos <= first + n_keep[w]) {
+                mel.anchors.push_back({ pos - first, sec });
+            }
+        }
+        first += n_keep[w];
+        output.push_back(std::move(mel));
+    }
+    return true;
+}
+
+//
 // mtmd_audio_preprocessor_qwen3a
 //
 // Matches the Python WhisperFeatureExtractor called with truncation=False:

@@ -274,6 +274,19 @@ class Qwen3Model(Qwen2Model):
         yield from super().modify_tensors(data_torch, name, bid)
 
 
+@ModelBase.register("MossTranscribeDiarizeForConditionalGeneration")
+@ModelBase.example("OpenMOSS-Team/MOSS-Transcribe-Diarize")
+class MossTranscribeDiarizeModel(Qwen3Model):
+    # the text decoder only, the audio encoder goes to the mmproj
+    model_arch = gguf.MODEL_ARCH.QWEN3
+
+    @classmethod
+    def filter_tensors(cls, item: tuple[str, Callable[[], Tensor]]) -> tuple[str, Callable[[], Tensor]] | None:
+        if item[0].startswith(("model.whisper_encoder.", "model.vq_adaptor.")):
+            return None
+        return super().filter_tensors(item)
+
+
 @ModelBase.register("Qwen3MoeForCausalLM")
 @ModelBase.example("Qwen/Qwen3-30B-A3B")
 class Qwen3MoeModel(Qwen2MoeModel):

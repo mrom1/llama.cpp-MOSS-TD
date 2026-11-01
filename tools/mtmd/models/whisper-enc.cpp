@@ -117,6 +117,41 @@ ggml_cgraph * clip_graph_whisper_enc::build() {
         cur = ggml_mul_mat(ctx0, model.mm_3_w, cur);
         cur = ggml_add(ctx0, cur, model.mm_3_b);
 
+    } else if (proj_type == PROJECTOR_TYPE_MOSS_TD) {
+        // stack (above) -> linear + silu -> linear -> layernorm
+        cur = build_ffn(cur,
+            model.mm_1_w, model.mm_1_b,
+            nullptr, nullptr,
+            model.mm_2_w, model.mm_2_b,
+            FFN_SILU,
+            -1);
+        cur = ggml_norm(ctx0, cur, 1e-6);
+        cur = ggml_mul(ctx0, cur, model.mm_post_norm_w);
+        cur = ggml_add(ctx0, cur, model.mm_post_norm_b);
+
+        // keep the tokens of real audio, insert the time anchors (the second as digit embeddings)
+        const int n_keep = img.audio_n_keep >= 0 ? std::min<int>(img.audio_n_keep, cur->ne[1]) : (int) cur->ne[1];
+        ggml_tensor * out = nullptr;
+        auto append = [&](ggml_tensor * t) {
+            out = out ? ggml_concat(ctx0, out, t, 1) : t;
+        };
+        auto audio_part = [&](int from, int to) {
+            if (to > from) {
+                append(ggml_view_2d(ctx0, cur, cur->ne[0], to - from, cur->nb[1], (size_t) from * cur->nb[1]));
+            }
+        };
+        int done = 0;
+        for (const auto & anchor : img.audio_anchors) {
+            audio_part(done, anchor.first);
+            done = anchor.first;
+            for (char c : std::to_string(anchor.second)) {
+                const int d = c - '0';
+                append(ggml_view_2d(ctx0, model.mm_digit_embd, model.mm_digit_embd->ne[0], 1, model.mm_digit_embd->nb[1], (size_t) d * model.mm_digit_embd->nb[1]));
+            }
+        }
+        audio_part(done, n_keep);
+        cur = out;
+
     } else if (proj_type == PROJECTOR_TYPE_GLMA) {
             cur = ggml_norm(ctx0, cur, hparams.eps);
             cur = ggml_mul(ctx0, cur, model.mm_norm_pre_w);

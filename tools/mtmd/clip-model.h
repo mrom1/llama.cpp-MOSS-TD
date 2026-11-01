@@ -665,6 +665,7 @@ struct clip_model {
     ggml_tensor * mm_ffn_down_b = nullptr;
     ggml_tensor * mm_post_norm_w = nullptr;
     ggml_tensor * mm_post_norm_b = nullptr;
+    ggml_tensor * mm_digit_embd  = nullptr; // moss_td: token embeddings of the digits 0-9 (time anchors)
 
     // LLaVA projection
     ggml_tensor * mm_input_norm_w = nullptr;
@@ -973,7 +974,8 @@ struct clip_model {
     bool audio_has_stack_frames() const {
         return proj_type == PROJECTOR_TYPE_ULTRAVOX
             || proj_type == PROJECTOR_TYPE_VOXTRAL
-            || proj_type == PROJECTOR_TYPE_MERALION;
+            || proj_type == PROJECTOR_TYPE_MERALION
+            || proj_type == PROJECTOR_TYPE_MOSS_TD;
     }
 };
 

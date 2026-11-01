@@ -1336,6 +1336,8 @@ class MODEL_TENSOR(IntEnum):
     A_MMPROJ_FC           = auto()
     A_MM_NORM_PRE         = auto()
     A_MM_NORM_MID         = auto()
+    A_MM_NORM_POST        = auto()
+    A_MM_DIGIT_EMBD       = auto()
     A_MM_EMBEDDING        = auto() # gemma3n
     A_MM_HARD_EMB_NORM    = auto() # gemma3n
     A_MM_SOFT_EMB_NORM    = auto() # gemma3n
@@ -2186,6 +2188,8 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.A_MMPROJ_FC:               "mm.a.fc",
     MODEL_TENSOR.A_MM_NORM_PRE:             "mm.a.norm_pre",
     MODEL_TENSOR.A_MM_NORM_MID:             "mm.a.norm_mid",
+    MODEL_TENSOR.A_MM_NORM_POST:            "mm.a.norm_post",
+    MODEL_TENSOR.A_MM_DIGIT_EMBD:           "mm.a.digit_embd",
     MODEL_TENSOR.A_MM_INP_PROJ:             "mm.a.input_projection",      # gemma3n
     MODEL_TENSOR.A_MM_SOFT_EMB_NORM:        "mm.a.soft_emb_norm",         # gemma3n
     MODEL_TENSOR.A_MM_EMBEDDING:            "mm.a.embedding",             # gemma3n
@@ -2458,6 +2462,8 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.A_MMPROJ_FC,
         MODEL_TENSOR.A_MM_NORM_PRE,
         MODEL_TENSOR.A_MM_NORM_MID,
+        MODEL_TENSOR.A_MM_NORM_POST,
+        MODEL_TENSOR.A_MM_DIGIT_EMBD,
         MODEL_TENSOR.A_MM_CODE_EMBD,
         MODEL_TENSOR.A_MM_LOCAL_ATTN_Q,
         MODEL_TENSOR.A_MM_LOCAL_ATTN_K,
@@ -6671,6 +6677,7 @@ class VisionProjectorType:
     VOXTRAL = "voxtral"
     VOXTRAL_RT = "voxtral_rt"
     MERALION = "meralion"  # audio: Whisper + gated MLP adaptor
+    MOSS_TD = "moss_td"  # audio: Whisper + stacked frames + MLP + LayerNorm
     LFM2 = "lfm2"
     LFM3VL = "lfm3vl"
     KIMIVL = "kimivl"

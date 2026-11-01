@@ -1088,6 +1088,13 @@ struct mtmd_context {
                     aud_end = "<|audio_end|>";
                     audio_preproc = std::make_unique<mtmd_audio_preprocessor_qwen3a>(ctx_a);
                 } break;
+            case PROJECTOR_TYPE_MOSS_TD:
+                {
+                    // <|audio_start|> ... (embeddings) ... <|audio_end|>
+                    aud_beg = "<|audio_start|>";
+                    aud_end = "<|audio_end|>";
+                    audio_preproc = std::make_unique<mtmd_audio_preprocessor_moss_td>(ctx_a);
+                } break;
             case PROJECTOR_TYPE_VOXTRAL:
                 {
                     // [BEGIN_AUDIO] ... (embeddings) ...
@@ -1838,6 +1845,8 @@ struct mtmd_tokenizer {
                     {(int)mel_spec.n_len, (int)mel_spec.n_mel},
                     is_placeholder, /* is_audio */ true);
                 mel_f32.cpy_buf(mel_spec.data);
+                mel_f32.audio_n_keep  = mel_spec.n_keep;
+                mel_f32.audio_anchors = mel_spec.anchors;
 
                 size_t n_tokens = clip_n_output_tokens(ctx->ctx_a, &mel_f32);
 
